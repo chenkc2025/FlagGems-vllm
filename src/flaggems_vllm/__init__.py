@@ -51,6 +51,9 @@ _FULL_CONFIG = tuple(
     if op_name in globals() and callable(globals()[op_name])
 )
 
+if "qsa_sparse_paged_attention" in globals():
+    _FULL_CONFIG += (("qsa_sparse_paged_attention", qsa_sparse_paged_attention),)
+
 if "weight_norm_interface" in globals():
     _FULL_CONFIG += (("_weight_norm_interface", weight_norm_interface),)
 if "weight_norm_interface_backward" in globals():
@@ -235,3 +238,6 @@ __all__ = [
     "all_registered_ops",
     "all_registered_keys",
 ]
+
+if "qsa_sparse_paged_attention" in globals():
+    __all__.append("qsa_sparse_paged_attention")
