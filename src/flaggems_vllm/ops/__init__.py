@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from flaggems_vllm import runtime as _runtime
+
 # isort: off
 from flaggems_vllm.ops.act_quant import act_quant_triton
 from flaggems_vllm.ops.add_rms_norm import add_rms_norm
@@ -218,3 +220,11 @@ __all__ = [
     "weight_norm_interface",
     "weight_norm_interface_backward",
 ]
+
+# Export the Hygon-only addition without changing generic implementations.
+if _runtime.device.vendor_name == "hygon":
+    from flaggems_vllm.runtime.backend._hygon.ops import (
+        qsa_sparse_paged_attention as qsa_sparse_paged_attention,
+    )
+
+    __all__ += ["qsa_sparse_paged_attention"]
