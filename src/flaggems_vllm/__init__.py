@@ -23,9 +23,6 @@ from flaggems_vllm import testing  # noqa: F401
 from flaggems_vllm import runtime
 from flaggems_vllm.config import aten_patch_list, resolve_user_setting
 from flaggems_vllm.ops import *  # noqa: F401,F403
-from flaggems_vllm.ops.qsa_sparse_paged_attention import (  # noqa: F401
-    qsa_sparse_paged_attention,
-)
 from flaggems_vllm.runtime.register import Register
 
 device = runtime.device.name
@@ -34,6 +31,11 @@ aten_lib = torch.library.Library("aten", "IMPL")
 registrar = Register
 current_work_registrar = None
 runtime.replace_customized_ops(globals())
+
+if vendor_name == "thead":
+    from flaggems_vllm.runtime.backend._thead.qsa_sparse_paged_attention import (  # noqa: F401
+        qsa_sparse_paged_attention,
+    )
 
 __version__ = "0.1.0"
 
