@@ -9,6 +9,9 @@ Inputs use synthetic token indices directly, without indexer or block expansion.
 The baseline already applies the output gate.
 """
 
+import importlib.util
+import os
+
 import pytest
 import torch
 
@@ -62,6 +65,10 @@ def _qsa_sparse_paged_attention_reference(
     "use_prefill_config, num_requests, fp8",
     [
         # T, Hq, Hkv, page_size, prefill_config, requests, fp8
+        (1, 6, 1, 784, True, 1, False),
+        (32, 6, 1, 784, False, 1, False),
+        (1, 6, 1, 784, True, 1, True),
+        (32, 6, 1, 784, False, 1, True),
         (1, 24, 2, 1600, True, 2, False),
         (16, 12, 1, 1600, True, 3, False),
         (32, 6, 1, 800, True, 5, False),
@@ -91,7 +98,17 @@ def test_qsa_sparse_paged_attention(
     """Compare FlagGems with the vLLM op and its PyTorch reference."""
     if cfg.QUICK_MODE and num_rows not in (1, 16, 32):
         pytest.skip("outside the quick shape set")
-    qsa = pytest.importorskip("vllm.models.qwen4_exp.nvidia.ops.qsa")
+    source = os.environ.get("FLAGGEMS_QSA_VENDOR_SOURCE")
+    if source:
+        spec = importlib.util.spec_from_file_location("qsa_vendor_test", source)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Unable to load QSA vendor source: {source}")
+        qsa = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(qsa)
+    elif flaggems_vllm.vendor_name != "mthreads":
+        qsa = pytest.importorskip("vllm.models.qwen4_exp.nvidia.ops.qsa")
+    else:
+        qsa = None
     torch.manual_seed(2)
     head_dim = 256
     num_pages_per_request = 65
@@ -150,18 +167,6 @@ def test_qsa_sparse_paged_attention(
     else:
         k_scale, v_scale = 1.0, 1.0
 
-    expected = qsa.qsa_sparse_paged_attention(
-        q,
-        k_cache,
-        v_cache,
-        logical_indices,
-        block_table,
-        token_to_req,
-        use_prefill_config=use_prefill_config,
-        k_scale=k_scale,
-        v_scale=v_scale,
-        output_gate=output_gate,
-    )
     actual = flaggems_vllm.qsa_sparse_paged_attention(
         q,
         k_cache,
@@ -178,7 +183,20 @@ def test_qsa_sparse_paged_attention(
     assert actual.shape == q.shape
     assert actual.dtype == q.dtype
     assert actual.device == q.device
-    flaggems_vllm.testing.assert_close(actual, expected, dtype=q.dtype, atol=2e-2)
+    if qsa is not None:
+        expected = qsa.qsa_sparse_paged_attention(
+            q,
+            k_cache,
+            v_cache,
+            logical_indices,
+            block_table,
+            token_to_req,
+            use_prefill_config=use_prefill_config,
+            k_scale=k_scale,
+            v_scale=v_scale,
+            output_gate=output_gate,
+        )
+        flaggems_vllm.testing.assert_close(actual, expected, dtype=q.dtype, atol=2e-2)
 
     torch_expected = _qsa_sparse_paged_attention_reference(
         q,

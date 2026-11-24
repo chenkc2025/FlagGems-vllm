@@ -14,6 +14,9 @@
 
 """Benchmark FlagGems QSA attention against the vLLM Triton implementation."""
 
+import importlib.util
+import os
+
 import pytest
 import torch
 
@@ -30,6 +33,8 @@ class QSASparsePagedAttentionBenchmark(base.Benchmark):
             [torch.bfloat16],
             gems_op=flaggems_vllm.qsa_sparse_paged_attention,
         )
+        if reference is None:
+            self.metrics = self.to_bench_metrics = ["latency"]
 
     def get_input_iter(self, dtype):
         for (
@@ -120,5 +125,17 @@ class QSASparsePagedAttentionBenchmark(base.Benchmark):
 @pytest.mark.qsa_sparse_paged_attention
 @torch.inference_mode()
 def test_qsa_sparse_paged_attention_benchmark():
-    qsa = pytest.importorskip("vllm.models.qwen4_exp.nvidia.ops.qsa")
-    QSASparsePagedAttentionBenchmark(qsa.qsa_sparse_paged_attention).run()
+    source = os.environ.get("FLAGGEMS_QSA_VENDOR_SOURCE")
+    if source:
+        spec = importlib.util.spec_from_file_location("qsa_vendor_benchmark", source)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Unable to load QSA vendor source: {source}")
+        qsa = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(qsa)
+        reference = qsa.qsa_sparse_paged_attention
+    elif flaggems_vllm.vendor_name == "mthreads":
+        reference = None
+    else:
+        qsa = pytest.importorskip("vllm.models.qwen4_exp.nvidia.ops.qsa")
+        reference = qsa.qsa_sparse_paged_attention
+    QSASparsePagedAttentionBenchmark(reference).run()

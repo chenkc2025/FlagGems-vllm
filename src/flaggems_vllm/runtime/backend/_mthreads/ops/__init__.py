@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from flaggems_vllm.runtime.backend._mthreads.ops._qsa_mthreads_dispatch import (
+    qsa_sparse_paged_attention,
+)
 from flaggems_vllm.runtime.backend._mthreads.ops.compress_norm_mrope import (
     qwen4_compress_norm_mrope_store_groups,
 )
@@ -65,6 +68,7 @@ __all__ = [
     "grouped_topk",
     "per_token_group_quant_fp8",
     "qwen4_store_qsa_kv_rows",
+    "qsa_sparse_paged_attention",
     "qwen4_hc_inject_combine",
     "ple_state_scatter_",
     "qwen4_qsa_mqa_paged_dot",
